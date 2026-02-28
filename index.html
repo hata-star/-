@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="description" content="日々の体調・感情・出来事を記録し、AIが優しく分析するセルフケアアプリ" />
+  <title>こころの日記 - 体調＆気分記録</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<!-- ===== SOS オーバーレイ（もしもの時モード） ===== -->
+<div id="sos-overlay" class="sos-overlay hidden">
+  <div class="sos-content">
+    <div class="sos-icon">🌸</div>
+    <h2 class="sos-title">今できること</h2>
+    <p class="sos-subtitle">ゆっくりで大丈夫。一つずつやってみよう。</p>
+    <div class="sos-steps">
+      <div class="sos-step">
+        <span class="sos-num">1</span>
+        <div class="sos-step-content">
+          <span class="sos-step-title">💧 水を一口飲む</span>
+          <span class="sos-step-desc">コップ一杯でOK</span>
+        </div>
+        <button class="sos-check" onclick="sosDone(this)">✓</button>
+      </div>
+      <div class="sos-step">
+        <span class="sos-num">2</span>
+        <div class="sos-step-content">
+          <span class="sos-step-title">🌬️ 深呼吸を3回</span>
+          <span class="sos-step-desc">息を吸って、ゆっくり吐く</span>
+        </div>
+        <button class="sos-check" onclick="sosDone(this)">✓</button>
+      </div>
+      <div class="sos-step">
+        <span class="sos-num">3</span>
+        <div class="sos-step-content">
+          <span class="sos-step-title">🚶 少し体を動かす</span>
+          <span class="sos-step-desc">背伸びや歩くだけでOK</span>
+        </div>
+        <button class="sos-check" onclick="sosDone(this)">✓</button>
+      </div>
+    </div>
+    <p class="sos-message" id="sos-msg">今日のあなた、よく頑張っています。</p>
+    <button class="btn-sos-close" onclick="closeSos()">閉じる</button>
+  </div>
+</div>
+
+<!-- ===== バッジ通知トースト ===== -->
+<div id="badge-toast" class="badge-toast hidden">
+  <div class="badge-toast-inner">
+    <span class="badge-toast-icon">🏅</span>
+    <div>
+      <div class="badge-toast-title">バッジ獲得！</div>
+      <div class="badge-toast-name" id="badge-toast-name"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== セーブ成功トースト ===== -->
+<div id="save-toast" class="save-toast hidden">
+  <span>✨ 記録しました</span>
+</div>
+
+<!-- ===== モーダル（カレンダー詳細） ===== -->
+<div id="day-modal" class="modal-backdrop hidden" onclick="closeModal(event)">
+  <div class="modal-card">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <div id="modal-content"></div>
+  </div>
+</div>
+
+<!-- ===== メインアプリ ===== -->
+<div class="app-wrapper">
+
+  <!-- ヘッダー -->
+  <header class="app-header">
+    <div class="header-left">
+      <span class="header-logo">🌙</span>
+      <span class="header-title">こころの日記</span>
+    </div>
+    <button class="sos-btn" id="sos-btn" onclick="openSos()" title="もしもの時">
+      <i data-lucide="heart-pulse" style="width:18px;height:18px;"></i>
+      <span>SOS</span>
+    </button>
+  </header>
+
+  <!-- コンテンツエリア -->
+  <main class="app-main">
+
+    <!-- == PAGE: ホーム == -->
+    <section id="page-home" class="page active">
+      <div class="page-scroll">
+
+        <!-- 日付・天気バナー -->
+        <div class="date-banner card glass">
+          <div class="date-info">
+            <div class="date-day" id="home-date"></div>
+            <div class="date-sub" id="home-weekday"></div>
+          </div>
+          <div class="weather-info" id="home-weather">
+            <span class="weather-icon" id="home-weather-icon">🌤️</span>
+            <div class="weather-detail">
+              <span id="home-weather-desc">晴れのち曇り</span>
+              <span class="pressure-note" id="home-pressure-note">気圧：安定中</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 気分入力カード -->
+        <div class="card glass mood-card">
+          <div class="card-label">今日の気分は？</div>
+          <div class="mood-buttons" id="mood-buttons">
+            <button class="mood-btn" data-score="5" onclick="selectMood(5)" title="とても良い">😄</button>
+            <button class="mood-btn" data-score="4" onclick="selectMood(4)" title="良い">🙂</button>
+            <button class="mood-btn" data-score="3" onclick="selectMood(3)" title="普通">😐</button>
+            <button class="mood-btn" data-score="2" onclick="selectMood(2)" title="つらい">😔</button>
+            <button class="mood-btn" data-score="1" onclick="selectMood(1)" title="最悪">😢</button>
+          </div>
+          <div class="mood-label-row">
+            <span style="font-size:11px;color:var(--text-muted)">とても良い</span>
+            <span style="font-size:11px;color:var(--text-muted)">最悪</span>
+          </div>
+          <!-- 感情タグ -->
+          <div class="tag-area" id="mood-tags-area" style="display:none">
+            <div class="tag-label">気持ちをもう少し教えて</div>
+            <div class="tag-grid" id="mood-tag-grid"></div>
+          </div>
+        </div>
+
+        <!-- クイック記録ボタン -->
+        <div class="quick-btns">
+          <button class="quick-btn voice-btn" onclick="goToRecord('voice')" id="quick-voice">
+            <i data-lucide="mic" style="width:22px;height:22px;"></i>
+            <span>話す</span>
+          </button>
+          <button class="quick-btn write-btn" onclick="goToRecord('text')" id="quick-write">
+            <i data-lucide="pen-line" style="width:22px;height:22px;"></i>
+            <span>書く</span>
+          </button>
+        </div>
+
+        <!-- 今日のひとこと -->
+        <div class="card glass oneliner-card" id="home-oneliner-card" style="display:none">
+          <div class="card-label-small">✨ 今日のひとこと</div>
+          <div class="oneliner-text" id="home-oneliner"></div>
+        </div>
+
+        <!-- ミニグラフ（7日） -->
+        <div class="card glass">
+          <div class="card-label-small">📈 直近7日の気分</div>
+          <canvas id="mini-chart" height="80"></canvas>
+        </div>
+
+        <!-- AIアドバイスカード -->
+        <div class="card glass advice-card" id="home-advice-card">
+          <div class="advice-header">
+            <span class="advice-icon">🤖</span>
+            <span class="card-label-small">AIからひとこと</span>
+          </div>
+          <p class="advice-text" id="home-advice">今日も記録してくれてありがとう。あなたの小さな一歩が積み重なっています。</p>
+        </div>
+
+        <!-- ウィークリーレポートバナー -->
+        <div class="card glass weekly-banner" id="weekly-banner" style="display:none">
+          <div class="weekly-header">
+            <span>📋 今週のムードレポート</span>
+            <button onclick="showWeeklyReport()" class="btn-small">見る</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- == PAGE: 記録 == -->
+    <section id="page-record" class="page">
+      <div class="page-scroll">
+        <div class="page-title-row">
+          <h1 class="page-title">記録する</h1>
+          <div class="record-date" id="record-date"></div>
+        </div>
+
+        <!-- 音声入力 -->
+        <div class="card glass voice-card" id="voice-card">
+          <div class="card-label-small">🎙️ 話して記録</div>
+          <p class="voice-hint">ボタンを押して、今日のことを話してください</p>
+          <button class="voice-record-btn" id="voice-record-btn" onclick="toggleVoice()">
+            <i data-lucide="mic" style="width:32px;height:32px;"></i>
+          </button>
+          <div class="voice-status" id="voice-status">タップして録音開始</div>
+          <div class="voice-transcript" id="voice-transcript"></div>
+        </div>
+
+        <!-- テキスト入力 -->
+        <div class="card glass">
+          <div class="card-label-small">✏️ 今日の出来事・気持ち</div>
+          <textarea class="diary-textarea" id="diary-text" placeholder="どんな一日でしたか？&#10;&#10;出来事・気持ちの変化・気づいたこと&#10;なんでも書いてください。"></textarea>
+          <div class="char-count"><span id="char-count">0</span> 文字</div>
+        </div>
+
+        <!-- 感情の変化 -->
+        <div class="card glass">
+          <div class="card-label-small">💫 気持ちの変化</div>
+          <div class="emotion-flow">
+            <div class="emotion-select">
+              <div class="emotion-label">前（出来事の前）</div>
+              <select class="emotion-dropdown" id="emotion-before">
+                <option value="">選択...</option>
+                <option>不安</option><option>緊張</option><option>怒り</option>
+                <option>悲しみ</option><option>疲れ</option><option>普通</option>
+                <option>期待</option><option>ワクワク</option><option>やる気</option><option>幸せ</option>
+              </select>
+            </div>
+            <div class="emotion-arrow">→</div>
+            <div class="emotion-select">
+              <div class="emotion-label">後（出来事の後）</div>
+              <select class="emotion-dropdown" id="emotion-after">
+                <option value="">選択...</option>
+                <option>不安</option><option>緊張</option><option>怒り</option>
+                <option>悲しみ</option><option>疲れ</option><option>普通</option>
+                <option>期待</option><option>ワクワク</option><option>やる気</option><option>幸せ</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- 保存ボタン -->
+        <button class="btn-primary btn-save" id="save-btn" onclick="saveRecord()">
+          <i data-lucide="save" style="width:18px;height:18px;"></i>
+          記録を保存する
+        </button>
+
+        <!-- AI分析結果（保存後表示） -->
+        <div class="card glass ai-result-card" id="ai-result-card" style="display:none">
+          <div class="card-label-small">🧠 AIからのフィードバック</div>
+          <div class="ai-result-text" id="ai-result-text"></div>
+          <div class="bias-section" id="bias-section" style="display:none">
+            <div class="bias-title">💡 気づきのポイント</div>
+            <div id="bias-list" class="bias-list"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- == PAGE: カレンダー == -->
+    <section id="page-calendar" class="page">
+      <div class="page-scroll">
+        <div class="calendar-header">
+          <button class="cal-nav" onclick="changeMonth(-1)"><i data-lucide="chevron-left" style="width:20px;height:20px;"></i></button>
+          <span class="cal-month-label" id="cal-month-label"></span>
+          <button class="cal-nav" onclick="changeMonth(1)"><i data-lucide="chevron-right" style="width:20px;height:20px;"></i></button>
+        </div>
+        <div class="calendar-grid" id="calendar-grid"></div>
+
+        <!-- 月間サマリ -->
+        <div class="card glass month-summary" id="month-summary">
+          <div class="card-label-small">📊 今月のまとめ</div>
+          <div class="summary-stats" id="summary-stats"></div>
+        </div>
+
+        <!-- 一言タイムライン -->
+        <div class="card glass timeline-card">
+          <div class="card-label-small">⏳ 最近の記録タイムライン</div>
+          <div class="timeline" id="timeline-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- == PAGE: 分析 == -->
+    <section id="page-analysis" class="page">
+      <div class="page-scroll">
+        <h1 class="page-title">気分の分析</h1>
+
+        <!-- 気分推移グラフ -->
+        <div class="card glass">
+          <div class="card-label-small">📉 気分の波（30日）</div>
+          <canvas id="mood-chart" height="140"></canvas>
+        </div>
+
+        <!-- パターン分析 -->
+        <div class="card glass analysis-text-card" id="pattern-card">
+          <div class="card-label-small">🔍 AIパターン分析</div>
+          <div class="analysis-text" id="pattern-text">記録が増えると、あなたのパターンが見えてきます。</div>
+        </div>
+
+        <!-- 認知バイアス履歴 -->
+        <div class="card glass" id="bias-history-card">
+          <div class="card-label-small">💭 思考パターンの傾向</div>
+          <div id="bias-history"></div>
+        </div>
+
+        <!-- 感情変化の集計 -->
+        <div class="card glass">
+          <div class="card-label-small">🎭 感情の変化パターン</div>
+          <canvas id="emotion-chart" height="120"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- == PAGE: チャット == -->
+    <section id="page-chat" class="page">
+      <div class="chat-container">
+        <div class="chat-messages" id="chat-messages">
+          <div class="chat-bubble ai-bubble">
+            <div class="bubble-content">
+              こんにちは 🌙<br>
+              今日はどんな一日でしたか？<br>
+              何でも気軽に話しかけてください。
+            </div>
+            <div class="bubble-time">AI</div>
+          </div>
+        </div>
+        <div class="chat-input-area">
+          <textarea class="chat-input" id="chat-input" placeholder="今日のことを話してみて..." rows="2" onkeydown="chatKeydown(event)"></textarea>
+          <button class="chat-send-btn" onclick="sendChat()" id="chat-send">
+            <i data-lucide="send" style="width:20px;height:20px;"></i>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- == PAGE: バッジ == -->
+    <section id="page-badges" class="page">
+      <div class="page-scroll">
+        <h1 class="page-title">成長記録</h1>
+
+        <!-- 連続記録 -->
+        <div class="card glass streak-card">
+          <div class="streak-fire">🔥</div>
+          <div class="streak-num" id="streak-num">0</div>
+          <div class="streak-label">日連続記録中</div>
+          <div class="streak-msg" id="streak-msg">今日から始めよう！</div>
+        </div>
+
+        <!-- バッジ一覧 -->
+        <div class="card glass">
+          <div class="card-label-small">🏅 獲得バッジ</div>
+          <div class="badge-grid" id="badge-grid"></div>
+        </div>
+
+        <!-- ウィークリーレポート -->
+        <div class="card glass" id="weekly-report-card" style="display:none">
+          <div class="card-label-small">📋 ウィークリームードレポート</div>
+          <div id="weekly-report-content"></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ボトムナビゲーション -->
+  <nav class="bottom-nav">
+    <button class="nav-item active" id="nav-home" onclick="showPage('home')">
+      <i data-lucide="home" style="width:22px;height:22px;"></i>
+      <span>ホーム</span>
+    </button>
+    <button class="nav-item" id="nav-record" onclick="showPage('record')">
+      <i data-lucide="edit-3" style="width:22px;height:22px;"></i>
+      <span>記録</span>
+    </button>
+    <button class="nav-item" id="nav-calendar" onclick="showPage('calendar')">
+      <i data-lucide="calendar" style="width:22px;height:22px;"></i>
+      <span>カレンダー</span>
+    </button>
+    <button class="nav-item" id="nav-analysis" onclick="showPage('analysis')">
+      <i data-lucide="bar-chart-2" style="width:22px;height:22px;"></i>
+      <span>分析</span>
+    </button>
+    <button class="nav-item" id="nav-chat" onclick="showPage('chat')">
+      <i data-lucide="message-circle" style="width:22px;height:22px;"></i>
+      <span>AI</span>
+    </button>
+    <button class="nav-item" id="nav-badges" onclick="showPage('badges')">
+      <i data-lucide="star" style="width:22px;height:22px;"></i>
+      <span>成長</span>
+    </button>
+  </nav>
+</div>
+
+<!-- JS モジュール -->
+<script src="js/data.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/home.js"></script>
+<script src="js/record.js"></script>
+<script src="js/calendar.js"></script>
+<script src="js/analysis.js"></script>
+<script src="js/chat.js"></script>
+<script src="js/badges.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
